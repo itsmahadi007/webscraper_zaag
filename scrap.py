@@ -3,6 +3,7 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
+from selenium.common.exceptions import StaleElementReferenceException
 import csv
 import time
 
@@ -87,6 +88,7 @@ def handle_dialogs(driver):
 #         print("[ERROR] Problem In Root Folder:", str(e))
 #         folders = []
 
+# Navigate and handle exporting TSV files
 def scrape_data(driver):
     try:
         handle_dialogs(driver)  # Handle dialogs if any appear
@@ -96,21 +98,36 @@ def scrape_data(driver):
         )
         print(f"[INFO] Found {len(folders)} folders.")
 
-        for index in range(len(folders)):
+        folder_names = [folder.text for folder in folders]  # Store folder names to use after page refresh
+
+        for folder_name in folder_names:
             try:
-                # Re-locate the folder elements before each interaction
+                # Refresh the page and re-locate the folder
+                driver.refresh()
+                time.sleep(3)  # Wait for the page to refresh
+
                 folders = WebDriverWait(driver, 10).until(
                     EC.presence_of_all_elements_located((By.CSS_SELECTOR, "table tbody tr td a"))
                 )
 
-                # Ensure the folder element is clickable before processing
-                folder = folders[index]
-                WebDriverWait(driver, 10).until(EC.element_to_be_clickable((By.CSS_SELECTOR, "table tbody tr td a")))
+                # Find the folder by name and ensure it's clickable
+                folder = next((f for f in folders if f.text == folder_name), None)
+                if folder is None:
+                    raise Exception(f"Folder with name '{folder_name}' not found after refresh.")
+
+                WebDriverWait(driver, 10).until(EC.element_to_be_clickable(folder))
 
                 print(f"[INFO] Scraping folder {folder.text}")
                 process_folder(driver, folder)
+
+            except StaleElementReferenceException as e:
+                print(
+                    f"[WARNING] Stale element detected while processing folder: {str(e)}. Retrying folder identification.")
+                time.sleep(2)  # Pause and retry folder identification
+                continue  # Continue with the next folder
+
             except Exception as e:
-                print(f"[ERROR] Unable to process folder: {folder.text}. Error: {str(e)}")
+                print(f"[ERROR] Unable to process folder: {folder_name}. Error: {str(e)}")
 
     except Exception as e:
         print("[ERROR] Problem In Root Folder:", str(e))
@@ -129,7 +146,7 @@ def process_folder(driver, folder):
         if driver.current_url.startswith("data:,"):
             print("[WARNING] Page URL turned into 'data:,' likely indicating an issue. Refreshing the page.")
             driver.refresh()
-            time.sleep(3)
+            time.sleep(2)
 
         # Locate the samples
         samples = driver.find_elements(By.CSS_SELECTOR, "table tbody tr td a")
@@ -140,7 +157,7 @@ def process_folder(driver, folder):
             # Re-locate the sample element by index
             samples = driver.find_elements(By.CSS_SELECTOR, "table tbody tr td a")
             sample = samples[index]
-            print(f"[INFO] Processing sample: {sample.text}")
+            # print(f"[INFO] Processing sample: {sample.text}")
 
             # Process the sample
             process_sample(driver, sample)
