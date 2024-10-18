@@ -56,7 +56,7 @@ def login(driver):
 def handle_dialogs(driver):
     try:
         # Example: Close popup if it appears
-        WebDriverWait(driver, 5).until(EC.element_to_be_clickable((By.XPATH,
+        WebDriverWait(driver, 2).until(EC.element_to_be_clickable((By.XPATH,
                                                                    "//button[contains(text(), 'Close') or contains(text(), 'Dismiss') or contains(text(), 'OK')]"))).click()
         print("[INFO] Dialog closed successfully.")
     except:
@@ -64,18 +64,56 @@ def handle_dialogs(driver):
 
 
 # Navigate and handle exporting TSV files
+# def scrape_data(driver):
+#     try:
+#         # Locate folder names in the table
+#         folders = WebDriverWait(driver, 10).until(
+#             EC.presence_of_all_elements_located((By.CSS_SELECTOR, "table tbody tr td a"))
+#         )
+#         print(f"[INFO] Found {len(folders)} folders.")
+#
+#         for folder in folders:
+#             try:
+#                 # Ensure the folder element is clickable before processing
+#                 WebDriverWait(driver, 10).until(
+#                     EC.element_to_be_clickable(folder)
+#                 )
+#                 process_folder(driver, folder)
+#             except Exception as e:
+#                 print(f"[ERROR] Unable to process folder: {folder.text}. Error: {str(e)}")
+#
+#
+#     except Exception as e:
+#         print("[ERROR] Problem In Root Folder:", str(e))
+#         folders = []
+
 def scrape_data(driver):
     try:
+        handle_dialogs(driver)  # Handle dialogs if any appear
         # Locate folder names in the table
         folders = WebDriverWait(driver, 10).until(
-            EC.presence_of_all_elements_located((By.CSS_SELECTOR, "table tbody tr td a")))
+            EC.presence_of_all_elements_located((By.CSS_SELECTOR, "table tbody tr td a"))
+        )
         print(f"[INFO] Found {len(folders)} folders.")
-    except Exception as e:
-        print("[ERROR] No folders found or unable to locate folders:", str(e))
-        folders = []
 
-    for folder in folders:
-        process_folder(driver, folder)
+        for index in range(len(folders)):
+            try:
+                # Re-locate the folder elements before each interaction
+                folders = WebDriverWait(driver, 10).until(
+                    EC.presence_of_all_elements_located((By.CSS_SELECTOR, "table tbody tr td a"))
+                )
+
+                # Ensure the folder element is clickable before processing
+                folder = folders[index]
+                WebDriverWait(driver, 10).until(EC.element_to_be_clickable((By.CSS_SELECTOR, "table tbody tr td a")))
+
+                print(f"[INFO] Scraping folder {folder.text}")
+                process_folder(driver, folder)
+            except Exception as e:
+                print(f"[ERROR] Unable to process folder: {folder.text}. Error: {str(e)}")
+
+    except Exception as e:
+        print("[ERROR] Problem In Root Folder:", str(e))
 
 
 # Process each folder
@@ -93,19 +131,27 @@ def process_folder(driver, folder):
             driver.refresh()
             time.sleep(3)
 
-        # Locate samples in the nested folder
+        # Locate the samples
         samples = driver.find_elements(By.CSS_SELECTOR, "table tbody tr td a")
         print(f"[INFO] Found {len(samples)} samples in folder: {folder_name}")
 
-        for sample in samples:
+        # for index in range(len(samples)):
+        for index in range(1):
+            # Re-locate the sample element by index
+            samples = driver.find_elements(By.CSS_SELECTOR, "table tbody tr td a")
+            sample = samples[index]
+            print(f"[INFO] Processing sample: {sample.text}")
+
+            # Process the sample
             process_sample(driver, sample)
-            driver.back()
+
 
 
     except Exception as e:
         print(f"[ERROR] Error processing folder '{folder_name}': {str(e)}")
 
     finally:
+        print(f"[INFO] Finished processing folder: {folder_name}. Back to Root Folder")
         driver.back()  # Go back to the root folder view
         time.sleep(2)
 
@@ -117,13 +163,13 @@ def process_sample(driver, sample):
         sample_name = sample.text
         print(f"[INFO] Processing sample: {sample_name}")
         sample.click()
-        time.sleep(3)  # Allow time for the sample page to load
+        time.sleep(2)  # Allow time for the sample page to load
 
         # Ensure we're not stuck on a "data:," page
         if driver.current_url.startswith("data:,"):
             print("[WARNING] Page URL turned into 'data:,' likely indicating an issue. Refreshing the page.")
             driver.refresh()
-            time.sleep(3)
+            time.sleep(2)
 
         try:
             # Wait for the selection field to be clickable and click it to open the dropdown
@@ -149,7 +195,6 @@ def process_sample(driver, sample):
                 # Wait for the taxonomy options select label to be clickable and click it
                 taxonomy_options_select_label = WebDriverWait(driver, 10).until(
                     EC.element_to_be_clickable((By.XPATH, "(//div[@id='artifact-options-select'])[2]"))
-                    # Adjust the index as needed
                 )
                 taxonomy_options_select_label.click()
                 print("[INFO] Taxonomy options select label clicked.")
@@ -162,15 +207,19 @@ def process_sample(driver, sample):
                 print(f"[INFO] Found {len(dropdown_options)} dropdown options.")
 
                 # Retrieve and print the text of each option
-                for option in dropdown_options:
+                # for dropdown_option in dropdown_options:
+                #     print(f"[INFO] Dropdown option: {dropdown_option.text}")
+
+                # for i in range(len(dropdown_options)):
+                for i in range(1):
+                    # Re-locate the dropdown options to avoid stale element reference
+                    dropdown_options = WebDriverWait(driver, 10).until(
+                        EC.visibility_of_all_elements_located((By.XPATH, "//ul[@role='listbox']//li"))
+                    )
+                    option = dropdown_options[i]
                     print(f"[INFO] Taxonomy option: {option.text}")
                     option.click()
-                    time.sleep(2)  # Wait for the selection to be processed
-
-                    # Retrieve and print the current value in the field
-                    current_value_element = driver.find_element(By.XPATH, "(//div[@id='artifact-options-select'])[2]")
-                    current_value = current_value_element.text
-                    print(f"[INFO] Current selection after clicking: {current_value}")
+                    time.sleep(1)  # Wait for the selection to be processed
 
                     try:
                         # Wait for the "Export current results" button to be clickable and click it
@@ -183,33 +232,37 @@ def process_sample(driver, sample):
                     except Exception as e:
                         print(f"[ERROR] Export current results: {str(e)}")
 
-                time.sleep(2)
+                    # Re-click the taxonomy options select label to open the dropdown again
+                    taxonomy_options_select_label = WebDriverWait(driver, 10).until(
+                        EC.element_to_be_clickable((By.XPATH, "(//div[@id='artifact-options-select'])[2]"))
+                    )
+                    taxonomy_options_select_label.click()
+                    print("[INFO] Taxonomy options select label clicked again.")
+
+            else:
+                try:
+                    # Wait for the "Export current results" button to be clickable and click it
+                    export_button = WebDriverWait(driver, 10).until(
+                        EC.element_to_be_clickable((By.XPATH,
+                                                    "//button[contains(@class, 'MuiButton-root') and contains(., 'Export current results')]"))
+                    )
+                    export_button.click()
+                    print("[INFO] 'Export current results' button clicked.")
+                except Exception as e:
+                    print(f"[ERROR] Export current results: {str(e)}")
+
+            time.sleep(1)
 
 
 
         except Exception as e:
             print(f"[ERROR] Error interacting with the selection field: {str(e)}")
 
-        # # Check for bacteria results and click EXPORT button
-        # if "Bacteria" in driver.page_source:
-        #     try:
-        #         export_button = WebDriverWait(driver, 10).until(EC.element_to_be_clickable((By.XPATH, "//button[text()='EXPORT']")))
-        #         export_button.click()
-        #         print("[INFO] EXPORT button clicked.")
-        #
-        #         # Wait for the export options to be visible and click All TSV Tables
-        #         tsv_option = WebDriverWait(driver, 10).until(EC.element_to_be_clickable((By.XPATH, "//button[text()='All TSV Tables']")))
-        #         tsv_option.click()
-        #         print("[INFO] All TSV Tables export selected. Waiting for completion...")
-        #         time.sleep(300)  # Wait for TSV generation (5 minutes)
-        #         print(f"[INFO] TSV export completed for sample: {sample_name}")
-        #     except Exception as e:
-        #         print(f"[ERROR] Error during export for sample '{sample_name}': {str(e)}")
-
     except Exception as e:
-        print(f"[ERROR] Error processing sample '{sample_name}': {str(e)}")
+        print(f"[ERROR] Error processing sample {str(e)}")
 
     finally:
+        print(f"[INFO] Finished processing sample {sample_name} , Back to Nested Folder")
         driver.back()  # Go back to the folder view
         time.sleep(2)
 
@@ -225,3 +278,8 @@ if __name__ == "__main__":
     finally:
         driver.quit()
         print("[INFO] Selenium driver closed.")
+
+# Retrieve and print the current value in the field
+# current_value_element = driver.find_element(By.XPATH, "(//div[@id='artifact-options-select'])[2]")
+# current_value = current_value_element.text
+# print(f"[INFO] Current selection after clicking: {current_value}")
