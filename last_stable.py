@@ -138,8 +138,8 @@ def process_folder(driver, folder):
         samples = driver.find_elements(By.CSS_SELECTOR, "table tbody tr td a")
         print(f"[INFO] Found {len(samples)} samples in folder: {folder_name}")
 
-        # for index in range(len(samples)):
-        for index in range(1):
+        for index in range(len(samples)):
+            # for index in range(1):
             # Re-locate the sample element by index
             samples = driver.find_elements(By.CSS_SELECTOR, "table tbody tr td a")
             sample = samples[index]
@@ -159,7 +159,6 @@ def process_folder(driver, folder):
         time.sleep(2)
 
 
-
 # Process each sample and handle exporting
 def process_sample(driver, sample):
     try:
@@ -172,12 +171,11 @@ def process_sample(driver, sample):
         # Ensure we're not stuck on a "data:," page
         if driver.current_url.startswith("data:,"):
             print("[WARNING] Page URL turned into 'data:,' likely indicating an issue. Refreshing the page.")
-            driver.refresh()
-            time.sleep(2)
+            refresh_and_validate(driver)
 
         try:
             # Wait for the selection field to be clickable and click it to open the dropdown
-            selection_field = WebDriverWait(driver, 10).until(
+            selection_field = WebDriverWait(driver, 15).until(
                 EC.element_to_be_clickable((By.XPATH, "//div[@id='analysis-select']"))
             )
 
@@ -188,65 +186,100 @@ def process_sample(driver, sample):
             if current_value == "Bacteria":
                 print("[INFO] Bacteria selected Already.")
 
-                # Wait for the button to be clickable and click it
-                taxonomy_switcher_btn = WebDriverWait(driver, 10).until(
-                    EC.element_to_be_clickable((By.XPATH, "//button[@id='artifact-select-button-kepler-biom']"))
-                )
-                taxonomy_switcher_btn.click()
-                print("[INFO] Taxonomy switcher button clicked.")
-                time.sleep(2)
+                # Retry mechanism for taxonomy switcher button
+                taxonomy_switcher_clicked = False
+                retry_count = 3
+                switcher_ids = ["artifact-select-button-biom", "artifact-select-button-kepler-biom"]
+                for attempt in range(retry_count):
+                    for switcher_id in switcher_ids:
+                        try:
+                            taxonomy_switcher_btn = WebDriverWait(driver, 10).until(
+                                EC.element_to_be_clickable((By.ID, switcher_id))
+                            )
+                            taxonomy_switcher_btn.click()
+                            taxonomy_switcher_clicked = True
+                            print(f"[INFO] Taxonomy switcher button with ID '{switcher_id}' clicked.")
+                            time.sleep(2)  # Allow the switcher to load
+                            break
+                        except TimeoutException:
+                            print(
+                                f"[WARNING] Attempt {attempt + 1}/{retry_count} - Failed to click taxonomy switcher button with ID '{switcher_id}'. Retrying with next ID...")
+                    if taxonomy_switcher_clicked:
+                        break
+                    time.sleep(2)  # Allow some time before retrying
 
-                # Wait for the taxonomy options select label to be clickable and click it
-                taxonomy_options_select_label = WebDriverWait(driver, 10).until(
-                    EC.element_to_be_clickable((By.XPATH, "(//div[@id='artifact-options-select'])[2]"))
-                )
-                taxonomy_options_select_label.click()
-                print("[INFO] Taxonomy options select label clicked.")
-                time.sleep(2)
+                if not taxonomy_switcher_clicked:
+                    print("[ERROR] Unable to click taxonomy switcher button after multiple attempts.")
+                    return
 
-                # Wait for the dropdown options to be visible
-                dropdown_options = WebDriverWait(driver, 10).until(
-                    EC.visibility_of_all_elements_located((By.XPATH, "//ul[@role='listbox']//li"))
-                )
-                print(f"[INFO] Found {len(dropdown_options)} dropdown options.")
+                # Initialize the variable to store the working index
+                working_taxonomy_index = None
 
-                # Retrieve and print the text of each option
-                # for dropdown_option in dropdown_options:
-                #     print(f"[INFO] Dropdown option: {dropdown_option.text}")
+                # Try multiple attempts to locate and click the taxonomy options select label
+                for attempt in [2, 1]:  # Trying index 2 first, then index 1 if necessary
+                    try:
+                        taxonomy_options_select_label = WebDriverWait(driver, 10).until(
+                            EC.element_to_be_clickable(
+                                (By.XPATH, f"(//div[@id='artifact-options-select'])[{attempt}]"))
+                        )
+                        taxonomy_options_select_label.click()
+                        working_taxonomy_index = attempt  # Store the working index
+                        print(f"[INFO] Taxonomy options select label clicked using attempt index {attempt}.")
+                        break
+                    except TimeoutException:
+                        print(
+                            f"[WARNING] Attempt to click taxonomy level with index {attempt} failed. Trying next index...")
 
-                # for i in range(len(dropdown_options)):
-                for i in range(1):
-                    # Re-locate the dropdown options to avoid stale element reference
-                    dropdown_options = WebDriverWait(driver, 10).until(
+                # If a working index was found, proceed with dropdown options
+                if working_taxonomy_index is not None:
+                    # Wait for the dropdown options to be visible
+                    dropdown_options = WebDriverWait(driver, 15).until(
                         EC.visibility_of_all_elements_located((By.XPATH, "//ul[@role='listbox']//li"))
                     )
-                    option = dropdown_options[i]
-                    print(f"[INFO] Taxonomy option: {option.text}")
-                    option.click()
-                    time.sleep(1)  # Wait for the selection to be processed
+                    print(f"[INFO] Found {len(dropdown_options)} dropdown options.")
 
-                    try:
-                        # Wait for the "Export current results" button to be clickable and click it
-                        export_button = WebDriverWait(driver, 10).until(
-                            EC.element_to_be_clickable((By.XPATH,
-                                                        "//button[contains(@class, 'MuiButton-root') and contains(., 'Export current results')]"))
+                    # Iterate through taxonomy levels
+                    for i in range(len(dropdown_options)):
+                        # for i in range(2):
+                        # Re-locate the dropdown options to avoid stale element reference
+                        dropdown_options = WebDriverWait(driver, 15).until(
+                            EC.visibility_of_all_elements_located((By.XPATH, "//ul[@role='listbox']//li"))
                         )
-                        export_button.click()
-                        print("[INFO] 'Export current results' button clicked.")
-                    except Exception as e:
-                        print(f"[ERROR] Export current results: {str(e)}")
+                        option = dropdown_options[i]
+                        print(f"[INFO] Taxonomy option: {option.text}")
+                        option.click()
+                        time.sleep(1)  # Wait for the selection to be processed
 
-                    # Re-click the taxonomy options select label to open the dropdown again
-                    taxonomy_options_select_label = WebDriverWait(driver, 10).until(
-                        EC.element_to_be_clickable((By.XPATH, "(//div[@id='artifact-options-select'])[2]"))
-                    )
-                    taxonomy_options_select_label.click()
-                    print("[INFO] Taxonomy options select label clicked again.")
+                        try:
+                            # Wait for the "Export current results" button to be clickable and click it
+                            export_button = WebDriverWait(driver, 15).until(
+                                EC.element_to_be_clickable((By.XPATH,
+                                                            "//button[contains(@class, 'MuiButton-root') and contains(., 'Export current results')]"))
+                            )
+                            export_button.click()
+                            print("[INFO] 'Export current results' button clicked.")
+                        except Exception as e:
+                            print(f"[ERROR] Export current results: {str(e)}")
+
+                        # Re-click the taxonomy options select label to open the dropdown again
+                        try:
+                            taxonomy_options_select_label = WebDriverWait(driver, 15).until(
+                                EC.element_to_be_clickable(
+                                    (By.XPATH, f"(//div[@id='artifact-options-select'])[{working_taxonomy_index}]"))
+                            )
+                            taxonomy_options_select_label.click()
+                            print(
+                                f"[INFO] Taxonomy options select label clicked again using stored index {working_taxonomy_index}.")
+                        except TimeoutException:
+                            print(
+                                f"[ERROR] Unable to re-click taxonomy options select label using stored index {working_taxonomy_index}.")
+                else:
+                    print("[ERROR] No valid taxonomy options select label index found. Cannot proceed.")
 
             else:
                 try:
                     # Wait for the "Export current results" button to be clickable and click it
-                    export_button = WebDriverWait(driver, 10).until(
+                    export_button = WebDriverWait(driver, 15).until(
                         EC.element_to_be_clickable((By.XPATH,
                                                     "//button[contains(@class, 'MuiButton-root') and contains(., 'Export current results')]"))
                     )
@@ -257,7 +290,6 @@ def process_sample(driver, sample):
 
             time.sleep(1)
 
-
         except Exception as e:
             print(f"[ERROR] Error interacting with the selection field: {str(e)}")
 
@@ -266,7 +298,8 @@ def process_sample(driver, sample):
 
     finally:
         print(f"[INFO] Finished processing sample {sample_name} , Back to Nested Folder")
-        driver.back()  # Go back to the folder view
+        # driver.get(driver.current_url.split('/nested')[0])  # Refresh by going back to a stable parent URL
+        driver.back()
         time.sleep(2)
 
 
