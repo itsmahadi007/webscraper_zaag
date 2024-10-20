@@ -1,7 +1,8 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project version="4">
   <component name="Black">
-    <option name="sdkName" value="Python 3.10 (webscraper_zaag)" />
+    <option name="enabledOnReformat" value="true" />
+    <option name="sdkName" value="Python 3.10 (Django_e-comerce_with_payment_getway_and_rest_api)" />
   </component>
   <component name="ProjectRootManager" version="2" project-jdk-name="Python 3.10 (Django_e-comerce_with_payment_getway_and_rest_api)" project-jdk-type="Python SDK" />
 </project>

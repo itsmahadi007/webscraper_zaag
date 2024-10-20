@@ -13,7 +13,9 @@ def scrape_data(driver):
         handle_dialogs(driver)  # Handle dialogs if any appear
         # Locate folder names in the table
         folders = WebDriverWait(driver, 10).until(
-            EC.presence_of_all_elements_located((By.CSS_SELECTOR, "table tbody tr td a"))
+            EC.presence_of_all_elements_located(
+                (By.CSS_SELECTOR, "table tbody tr td a")
+            )
         )
         print(f"[INFO] Found {len(folders)} folders.")
 
@@ -21,7 +23,9 @@ def scrape_data(driver):
             try:
                 # Re-locate the folder elements before each interaction
                 folders = WebDriverWait(driver, 10).until(
-                    EC.presence_of_all_elements_located((By.CSS_SELECTOR, "table tbody tr td a"))
+                    EC.presence_of_all_elements_located(
+                        (By.CSS_SELECTOR, "table tbody tr td a")
+                    )
                 )
                 folder = folders[index]
                 print(f"[INFO] Processing folder: {folder.text}")
@@ -29,11 +33,14 @@ def scrape_data(driver):
 
             except StaleElementReferenceException as e:
                 print(
-                    f"[WARNING] Stale element detected while processing folder: {str(e)}. Retrying folder identification.")
+                    f"[WARNING] Stale element detected while processing folder: {str(e)}. Retrying folder identification."
+                )
                 refresh_and_validate(driver, "search")
                 continue  # Retry locating folders
             except Exception as e:
-                print(f"[ERROR] Unable to process folder: {folder.text if folder else 'Unknown'}. Error: {str(e)}")
+                print(
+                    f"[ERROR] Unable to process folder: {folder.text if folder else 'Unknown'}. Error: {str(e)}"
+                )
 
     except Exception as e:
         print("[ERROR] Problem In Root Folder:", str(e))
@@ -51,8 +58,7 @@ def process_folder(driver, folder):
 
         # Locate samples
         samples = driver.find_elements(By.CSS_SELECTOR, "table tbody tr td a")
-        # for index in range(len(samples)):
-        for index in range(2):
+        for index in range(len(samples)):
             # Re-locate the sample element by index to avoid stale element issues
             samples = driver.find_elements(By.CSS_SELECTOR, "table tbody tr td a")
             sample = samples[index]
@@ -66,6 +72,10 @@ def process_folder(driver, folder):
         print(f"[ERROR] Error processing folder '{folder.text}': {str(e)}")
 
     finally:
-        print(f"[INFO] Finished processing folder: {folder.text}. Navigating back to Root Folder.")
-        driver.get("https://app.cosmosid.com/search")  # Use direct navigation instead of driver.back()
+        print(
+            f"[INFO] Finished processing folder: {folder.text}. Navigating back to Root Folder."
+        )
+        driver.get(
+            "https://app.cosmosid.com/search"
+        )  # Use direct navigation instead of driver.back()
         time.sleep(2)
